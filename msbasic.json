@@ -1,0 +1,41 @@
+{
+	"devices": {
+		"ram0": {
+			"type": "memory",
+			"is_rom": false,
+			"size": "0x4000"
+		},
+
+		"rom0": {
+			"type": "memory",
+			"is_rom": true,
+			"size": "0x8000",
+			"load": "apps/msbasic/bare6502.bin"
+		},
+
+		"acia0": {
+			"type": "acia"
+		}
+	},
+
+	"chips": {
+		"cpu0": {
+			"type": "65C02"
+		}
+	},
+
+	"links": {
+		"cpu0": {
+			"bus": {
+				"ram0": "0x0000",
+				"rom0": "0x8000",
+				"acia0": "0x5000"
+			}
+		},
+		"acia0": {
+			"irq": [
+				"cpu0"
+			]
+		}
+	}
+}

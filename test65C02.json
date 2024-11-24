@@ -1,0 +1,25 @@
+{
+	"devices": {
+		"ram0": {
+			"type": "memory",
+			"is_rom": false,
+			"size": "0x10000",
+			"load": "apps/65C02_ft/65C02_extended_opcodes_test.bin"
+		}
+	},
+
+	"chips": {
+		"cpu0": {
+			"type": "65C02",
+			"reset": "0x0400"
+		}
+	},
+
+	"links": {
+		"cpu0": {
+			"bus": {
+				"ram0": "0x0000"
+			}
+		}
+	}
+}
