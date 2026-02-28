@@ -2,6 +2,7 @@
 #include <utils.h>
 
 #define TEST_BIT(v, x) ((v) & (1 << x))
+#define BARE6502_TIME_SAMPLE_INSTR 65536u
 
 bare6502_t* bare6502_alloc() {
     bare6502_t* chip = malloc(sizeof(bare6502_t));
@@ -12,6 +13,15 @@ bare6502_t* bare6502_alloc() {
 
 void bare6502_free(bare6502_t* chip) {
     free(chip);
+}
+
+void bare6502_sync_stats(bare6502_t* chip) {
+    if (!chip || !chip->last_time_sample)
+        return;
+
+    double now = get_time_in_nanoseconds();
+    chip->time += now - chip->last_time_sample;
+    chip->last_time_sample = now;
 }
 
 static inline uint8_t bare6502_read_byte(bare6502_t* chip, uint16_t addr) {
@@ -30,14 +40,20 @@ static inline uint8_t bare6502_pop(bare6502_t* chip) {
     return bare6502_read_byte(chip, 0x100 | ++chip->sp);
 }
 
-void bare6502_interrupt(bare6502_t* chip, uint16_t vector) {
+void bare6502_interrupt(bare6502_t* chip, uint16_t vector, bool is_brk) {
     // chip->pc++;
+
+    uint8_t pushed_p = (chip->p | 0x20) & 0xEF;
+    if (is_brk)
+        pushed_p |= 0x10;
 
     bare6502_push(chip, (chip->pc >> 8) & 0xFF);
     bare6502_push(chip, chip->pc & 0xFF);
-    bare6502_push(chip, chip->p | 0x20);
+    bare6502_push(chip, pushed_p);
 
     chip->i = 1;
+    if (chip->type == MOS65C02)
+        chip->d = 0;
 
     chip->pc        = vector;
     uint8_t vec_lo  = bare6502_read_byte(chip, chip->pc++);
@@ -180,8 +196,6 @@ uint16_t bare6502_alu(bare6502_t* chip, uint8_t a, uint8_t b, bare6502_opcode_e 
         case LSR:
         case ROL:
         case ROR:
-        case TSB:
-        case TRB:
         case TXA:
         case TXS:
         case TSX:
@@ -195,6 +209,10 @@ uint16_t bare6502_alu(bare6502_t* chip, uint8_t a, uint8_t b, bare6502_opcode_e 
         case PLY:
         case PLX:
             chip->z = (res & 0xFF) == 0;
+            break;
+        case TSB:
+        case TRB:
+            chip->z = (a & b) == 0;
             break;
     };
 
@@ -268,9 +286,11 @@ static inline uint32_t bare6502_execute(bare6502_t* chip) {
         case LSR:
         case ROL:
         case ROR:
+            chip->operand = bare6502_alu(chip, chip->operand, 0, opcode);
+            return 1;
         case TSB:
         case TRB:
-            chip->operand = bare6502_alu(chip, chip->operand, 0, opcode);
+            chip->operand = bare6502_alu(chip, chip->operand, chip->a, opcode);
             return 1;
 
         case CMP:
@@ -308,7 +328,11 @@ static inline uint32_t bare6502_execute(bare6502_t* chip) {
             return 0;
 
         case BIT:
-            bare6502_alu(chip, chip->a, chip->operand, opcode);
+            if (chip->opcode->mode == IMM) {
+                chip->z = (chip->a & chip->operand) == 0;
+            } else {
+                bare6502_alu(chip, chip->a, chip->operand, opcode);
+            }
             return 0;
 
         case SMB0:
@@ -485,97 +509,97 @@ static inline uint32_t bare6502_execute(bare6502_t* chip) {
 
         case BBR0:
             if (!TEST_BIT(chip->operand, 0))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBR1:
             if (!TEST_BIT(chip->operand, 1))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBR2:
             if (!TEST_BIT(chip->operand, 2))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBR3:
             if (!TEST_BIT(chip->operand, 3))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBR4:
             if (!TEST_BIT(chip->operand, 4))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBR5:
             if (!TEST_BIT(chip->operand, 5))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBR6:
             if (!TEST_BIT(chip->operand, 6))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBR7:
             if (!TEST_BIT(chip->operand, 7))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBS0:
             if (TEST_BIT(chip->operand, 0))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBS1:
             if (TEST_BIT(chip->operand, 1))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBS2:
             if (TEST_BIT(chip->operand, 2))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBS3:
             if (TEST_BIT(chip->operand, 3))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBS4:
             if (TEST_BIT(chip->operand, 4))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBS5:
             if (TEST_BIT(chip->operand, 5))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBS6:
             if (TEST_BIT(chip->operand, 6))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
         case BBS7:
             if (TEST_BIT(chip->operand, 7))
-                chip->pc += chip->operand2;
+                chip->pc = chip->pc + (int8_t)chip->operand2;
 
             return 0;
 
@@ -605,9 +629,8 @@ static inline uint32_t bare6502_execute(bare6502_t* chip) {
             return 0;
 
         case BRK:
-            chip->b = 1;
             chip->pc++;
-            bare6502_interrupt(chip, 0xFFFE);
+            bare6502_interrupt(chip, 0xFFFE, true);
             return 0;
 
         case CLC:
@@ -718,12 +741,22 @@ static inline void bare6502_apply_address_mode(bare6502_t* chip, bare6502_addres
 
             chip->ea = addr1;
             break;
+        case IAX:
+            addr0  = bare6502_read_byte(chip, chip->pc++);
+            addr0 |= bare6502_read_byte(chip, chip->pc++) << 8;
+            addr0 += chip->x;
+
+            addr1  = bare6502_read_byte(chip, addr0);
+            addr1 |= bare6502_read_byte(chip, addr0 + 1) << 8;
+
+            chip->ea = addr1;
+            break;
         case IDX:
             addr0  = bare6502_read_byte(chip, chip->pc++) + chip->x;
             addr0 &= 0xFF;
 
             addr1  = bare6502_read_byte(chip, addr0);
-            addr1 |= bare6502_read_byte(chip, addr0 + 1) << 8;
+            addr1 |= bare6502_read_byte(chip, (addr0 + 1) & 0xFF) << 8;
 
             chip->ea = addr1;
             break;
@@ -732,7 +765,7 @@ static inline void bare6502_apply_address_mode(bare6502_t* chip, bare6502_addres
             addr0 &= 0xFF;
 
             addr1  = bare6502_read_byte(chip, addr0);
-            addr1 |= bare6502_read_byte(chip, addr0 + 1) << 8;
+            addr1 |= bare6502_read_byte(chip, (addr0 + 1) & 0xFF) << 8;
 
             addr1 += chip->y;
 
@@ -744,7 +777,7 @@ static inline void bare6502_apply_address_mode(bare6502_t* chip, bare6502_addres
             addr0 &= 0xFF;
 
             addr1  = bare6502_read_byte(chip, addr0);
-            addr1 |= bare6502_read_byte(chip, addr0 + 1) << 8;
+            addr1 |= bare6502_read_byte(chip, (addr0 + 1) & 0xFF) << 8;
 
             chip->ea = addr1;
             break;
@@ -778,13 +811,12 @@ void bare6502_step(bare6502_t* chip) {
 
             chip->state      = RUNNING;
             chip->time       = 0;
+            chip->last_time_sample = get_time_in_nanoseconds();
             break;
 
         case IN_NMI:
         case IN_IRQ:
         case RUNNING: {
-            double start = get_time_in_nanoseconds();
-
             chip->opcode_address = chip->pc;
             chip->opcode_byte = bare6502_read_byte(chip, chip->pc++);
             chip->opcode      = &bare6502_opcode_matrix[chip->type][chip->opcode_byte];
@@ -877,7 +909,12 @@ void bare6502_step(bare6502_t* chip) {
             }
 
             chip->instructions++;
-            chip->time += get_time_in_nanoseconds() - start;
+
+            if ((chip->instructions % BARE6502_TIME_SAMPLE_INSTR) == 0) {
+                double now = get_time_in_nanoseconds();
+                chip->time += now - chip->last_time_sample;
+                chip->last_time_sample = now;
+            }
         } break;
 
         case HALTED:
@@ -888,19 +925,19 @@ void bare6502_step(bare6502_t* chip) {
 void bare6502_pin_write(bus_link_t* link, uint32_t data) {
     bare6502_t* chip = bus_container_of(link->dst_bus, bare6502_t);
 
-    if (strcmp(link->dst->name, "irq") == 0) {
+    if (link->dst->name_hash == 0xb8880b1) {
         if (data && chip->state == RUNNING && !chip->i) {
             // printf("Got IRQ at 0x%04x\n", chip->pc);
-            bare6502_interrupt(chip, 0xFFFE);
+            bare6502_interrupt(chip, 0xFFFE, false);
             chip->state = IN_IRQ;
         }
-    } else if (strcmp(link->dst->name, "nmi") == 0) {
+    } else if (link->dst->name_hash == 0xb889549) {
         if (data && chip->state == RUNNING) {
             // printf("Got NMI at 0x%04x\n", chip->pc);
-            bare6502_interrupt(chip, 0xFFFA);
+            bare6502_interrupt(chip, 0xFFFA, false);
             chip->state = IN_NMI;
         }
-    } else if (strcmp(link->dst->name, "reset") == 0) {
+    } else if (link->dst->name_hash == 0x10474288) {
         bare6502_reset(chip, 0xFFFC);
     }
 }
@@ -910,6 +947,7 @@ bus_entry_t bare6502_bus_entries[] = {
         .name   = "bus",
         .type   = BUS_TYPE_BUS,
 
+        .name_hash      = 0xb88634f,
         .address_width  = 16,
         .data_width     = 8,
 
@@ -920,6 +958,7 @@ bus_entry_t bare6502_bus_entries[] = {
         .name   = "irq",
         .type   = BUS_TYPE_PIN,
 
+        .name_hash    = 0xb8880b1,
         .io_pin_read  = NULL,
         .io_pin_write = bare6502_pin_write,
     },
@@ -927,6 +966,7 @@ bus_entry_t bare6502_bus_entries[] = {
         .name   = "nmi",
         .type   = BUS_TYPE_PIN,
 
+        .name_hash    = 0xb889549,
         .io_pin_read  = NULL,
         .io_pin_write = bare6502_pin_write,
     },
@@ -934,6 +974,7 @@ bus_entry_t bare6502_bus_entries[] = {
         .name   = "reset",
         .type   = BUS_TYPE_PIN,
 
+        .name_hash    = 0x10474288,
         .io_pin_read  = NULL,
         .io_pin_write = bare6502_pin_write,
     }

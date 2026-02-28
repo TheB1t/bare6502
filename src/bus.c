@@ -1,23 +1,25 @@
 #include <bus.h>
 
-bus_entry_type_e bus_name_to_field_type(const char* name) {
-    if (strcmp(name, "bus") == 0)
-        return BUS_TYPE_BUS;
+uint32_t djb2_hash(const char* str) {
+    uint32_t hash = 5381; // Magic constant
+    int c;
 
-    if (strcmp(name, "pin") == 0)
-        return BUS_TYPE_PIN;
+    while ((c = *str++))
+        hash = ((hash << 5) + hash) + c; // hash * 33 + c
 
-    return BUS_TYPE_MAX;
+    return hash;
 }
 
 uint32_t bus_io_bus_read(bus_t* bus, const char* name, uint32_t address) {
+    uint32_t hash = djb2_hash(name);
+
     for (int i = 0; i < BUS_MAX_LINKS; i++) {
         bus_link_t* link = &bus->links[i];
 
         if (!link->dst || !link->dst->io_bus_read)
             continue;
 
-        if (strcmp(link->src->name, name) != 0)
+        if (link->src->name_hash != hash)
             continue;
 
         if (address < link->base || address >= link->base + link->dst_bus->size)
@@ -30,18 +32,19 @@ uint32_t bus_io_bus_read(bus_t* bus, const char* name, uint32_t address) {
 }
 
 void bus_io_bus_write(bus_t* bus, const char* name, uint32_t address, uint32_t data) {
+    uint32_t hash = djb2_hash(name);
+
     for (int i = 0; i < BUS_MAX_LINKS; i++) {
         bus_link_t* link = &bus->links[i];
 
         if (!link->dst || !link->dst->io_bus_write)
             continue;
 
-        if (strcmp(link->src->name, name) != 0)
+        if (link->src->name_hash != hash)
             continue;
 
         if (address < link->base || address >= link->base + link->dst_bus->size)
             continue;
-
 
         link->dst->io_bus_write(link, address - link->base, data);
         return;
@@ -49,13 +52,15 @@ void bus_io_bus_write(bus_t* bus, const char* name, uint32_t address, uint32_t d
 }
 
 uint32_t bus_io_pin_read(bus_t* bus, const char* name) {
+    uint32_t hash = djb2_hash(name);
+
     for (int i = 0; i < BUS_MAX_LINKS; i++) {
         bus_link_t* link = &bus->links[i];
 
         if (!link->dst || !link->dst->io_pin_read)
             continue;
 
-        if (strcmp(link->src->name, name) != 0)
+        if (link->src->name_hash != hash)
             continue;
 
         return link->dst->io_pin_read(link);
@@ -65,13 +70,15 @@ uint32_t bus_io_pin_read(bus_t* bus, const char* name) {
 }
 
 void bus_io_pin_write(bus_t* bus, const char* name, uint32_t data) {
+    uint32_t hash = djb2_hash(name);
+
     for (int i = 0; i < BUS_MAX_LINKS; i++) {
         bus_link_t* link = &bus->links[i];
 
         if (!link->dst || !link->dst->io_pin_write)
             continue;
 
-        if (strcmp(link->src->name, name) != 0)
+        if (link->src->name_hash != hash)
             continue;
 
         link->dst->io_pin_write(link, data);

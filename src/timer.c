@@ -58,6 +58,7 @@ bus_entry_t timer_bus_entries[] = {
         .name   = "bus",
         .type   = BUS_TYPE_BUS,
 
+        .name_hash      = 0xb88634f,
         .address_width  = 16,
         .data_width     = 8,
 
@@ -68,6 +69,7 @@ bus_entry_t timer_bus_entries[] = {
         .name   = "irq",
         .type   = BUS_TYPE_PIN,
 
+        .name_hash    = 0xb8880b1,
         .io_pin_read  = NULL,
         .io_pin_write = NULL,
     }

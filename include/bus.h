@@ -37,6 +37,7 @@ struct bus_link {
 
 struct bus_entry {
     char                name[16];
+    uint32_t            name_hash;
     bus_entry_type_e    type;
 
     // Using only for BUS_TYPE_BUS

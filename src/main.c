@@ -42,6 +42,7 @@ typed(json_element) __json_load(const char* filename) {
     fclose(file);
 
     result(json_element) element = json_parse(buffer);
+    free(buffer);
 
     if (result_is_err(json_element)(&element))
         exit(1);
@@ -265,24 +266,29 @@ int32_t load_links(typed(json_element) root) {
             }
         }
     }
+
+    return 0;
 }
 
 int32_t load_config(const char* filename) {
     typed(json_element) root = __json_load(filename);
     typed(json_element) elem0;
+    int32_t ret = 1;
 
     if (load_devices(root))
-        return 1;
+        goto _err;
 
     if (load_chips(root))
-        return 1;
+        goto _err;
 
     if (load_links(root))
-        return 1;
+        goto _err;
 
-    printf("Configuration loaded!\n");
+    ret = 0;
 
-    return 0;
+_err:
+    json_free(&root);
+    return ret;
 }
 
 int main(int argc, char* argv[]) {
@@ -304,12 +310,15 @@ int main(int argc, char* argv[]) {
 
     if (strlen(config_path) == 0) {
         printf("No config file specified, using default\n");
-        strcpy(config_path, "config.json");
+        strcpy(config_path, "pixel.json");
     }
 
     printf("Using config file %s\n", config_path);
 
-    load_config(config_path);
+    if (load_config(config_path))
+        printf("Failed to load config\n");
+    else
+        printf("Config loaded\n");
 
     if (next_chip == 0) {
         printf("No chips configured\n");
@@ -325,6 +334,7 @@ int main(int argc, char* argv[]) {
         uint8_t halted = 0;
         for (uint32_t i = 0; i < next_chip; i++) {
             bare6502_t* chip = chips[i];
+
             if (chip->step)
                 chip->step(chip);
 
@@ -346,14 +356,27 @@ int main(int argc, char* argv[]) {
 
     for (uint32_t i = 0; i < next_chip; i++) {
         bare6502_t* chip = chips[i];
+        bare6502_sync_stats(chip);
 
-        double instr_time = chip->time / chip->instructions;
+        double instr_time = chip->instructions ? (chip->time / chip->instructions) : 0;
 
         printf("Chip %s\n", chip->bus.name);
         printf("    - Seconds emulated: %lf s\n", chip->time / 1e9);
         printf("    - Instructions: %lu\n", chip->instructions);
         printf("    - Instruction time: %lf ns\n", instr_time);
-        printf("    - Instruction speed: %.2f MHz\n", 1000 / instr_time);
+        printf("    - Instruction speed: %.2f MHz\n", instr_time > 0 ? (1000 / instr_time) : 0);
+    }
+
+    for (uint32_t i = 0; i < next_device; i++) {
+        device_t* device = devices[i];
+        if (device)
+            device_free(device);
+    }
+
+    for (uint32_t i = 0; i < next_chip; i++) {
+        bare6502_t* chip = chips[i];
+        if (chip)
+            bare6502_free(chip);
     }
 
     return 0;

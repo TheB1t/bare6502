@@ -161,6 +161,7 @@ bus_entry_t display_bus_entries[] = {
         .name   = "bus",
         .type   = BUS_TYPE_BUS,
 
+        .name_hash      = 0xb88634f,
         .address_width  = 16,
         .data_width     = 8,
 

@@ -32,6 +32,7 @@ enum bare6502_type {
 struct bare6502 {
     uint32_t                instructions;       // Total number of instructions
     double                  time;               // Total time
+    double                  last_time_sample;   // Last host-time sample for profiling
 
     bare6502_state_e        state;              // Current state
     bare6502_type_e         type;               // Chip type
@@ -87,6 +88,7 @@ enum bare6502_address_mode {
     ABX,    // Absolute X
     ABY,    // Absolute Y
     IND,    // Indirect
+    IAX,    // Indirect Absolute X
     IDX,    // Indirect X
     IDY,    // Indirect Y
     IDZ,    // Indirect Zero Page
@@ -125,3 +127,4 @@ extern bare6502_opcode_t    bare6502_opcode_matrix[CHIP_TYPE_MAX][256];
 extern bare6502_t*      bare6502_alloc();
 extern void             bare6502_free(bare6502_t* chip);
 extern void             bare6502_init(bare6502_t* chip, bare6502_type_e type);
+extern void             bare6502_sync_stats(bare6502_t* chip);

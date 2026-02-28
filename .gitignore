@@ -1,3 +1,4 @@
 tmp/**
 build/**
 bare6502
+.cache/**

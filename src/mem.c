@@ -6,8 +6,6 @@ void mem_free(device_t* dev) {
 
     if (dev->data)
         free(dev->data);
-
-    free(dev);
 }
 
 uint32_t mem_io_bus_read(bus_link_t* link, uint32_t address) {
@@ -29,6 +27,7 @@ bus_entry_t mem_ram_bus_entries[] = {
         .name   = "bus",
         .type   = BUS_TYPE_BUS,
 
+        .name_hash      = 0xb88634f,
         .address_width  = 16,
         .data_width     = 8,
 
@@ -42,6 +41,7 @@ bus_entry_t mem_rom_bus_entries[] = {
         .name   = "bus",
         .type   = BUS_TYPE_BUS,
 
+        .name_hash      = 0xb88634f,
         .address_width  = 16,
         .data_width     = 8,
 
