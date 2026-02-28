@@ -6,11 +6,10 @@ bare6502 is a flexible and extensible emulator for the 65x02 family of MCUs.
 - Supported 6502 & 65C02 CPUs (can be easily extended)
 - Supported peripherals: ACIA/Display/Memory(RAM/ROM)/Timer
 - 'BUS' logic for flexible connections
-- Flexible configuration via JSON
+- Flexible configuration via TOML (tomlc99)
 
 # References
 - Original
-    - [JSON parser](https://github.com/whyisitworking/C-Simple-JSON-Parser)
     - [6502 tests](https://github.com/Klaus2m5/6502_65C02_functional_tests)
     - [MS BASIC for 6502](https://github.com/mist64/msbasic)
 - Modified (with bare6502 support)
